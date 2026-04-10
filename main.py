@@ -1,13 +1,13 @@
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, Response
 import requests
 import uuid
 import time
 
 app = Flask(__name__)
 
-@app.route('/', methods=['GET'])
+@app.route('/')
 def home():
-    return "MagicStudio API (raw body mode) 🚀"
+    return "Raw Image Proxy API 🚀"
 
 
 @app.route('/generate-art', methods=['GET', 'POST'])
@@ -29,7 +29,7 @@ def generate_art():
 
     boundary = "----WebKitFormBoundaryuGJAbBlkgtreHwWA"
 
-    # FULL RAW BODY (exact format)
+    # Exact raw multipart body
     body = f"""------WebKitFormBoundaryuGJAbBlkgtreHwWA\r
 Content-Disposition: form-data; name="prompt"\r
 \r
@@ -63,32 +63,33 @@ pSgX7WgjukXCBoYwDM8G8GLnRRkvAoJlqa5eAVvj95o\r
 
     headers = {
         "accept": "application/json, text/plain, */*",
-        "accept-language": "en-US,en;q=0.9",
         "content-type": f"multipart/form-data; boundary={boundary}",
         "origin": "https://magicstudio.com",
         "referer": "https://magicstudio.com/ai-art-generator/"
     }
 
     try:
-        response = requests.post(url, data=body.encode("utf-8"), headers=headers, timeout=30)
+        res = requests.post(
+            url,
+            data=body.encode("utf-8"),
+            headers=headers,
+            stream=True,   # IMPORTANT for raw streaming
+            timeout=30
+        )
 
-        content_type = response.headers.get("content-type", "")
+        content_type = res.headers.get("content-type", "image/png")
 
-        if content_type.startswith("image"):
-            return Response(response.content, content_type=content_type)
-
-        try:
-            return jsonify(response.json())
-        except:
-            return Response(response.text, content_type="text/plain")
+        # 🔥 RETURN RAW IMAGE DIRECTLY
+        return Response(
+            res.iter_content(chunk_size=8192),
+            content_type=content_type,
+            status=res.status_code
+        )
 
     except requests.exceptions.RequestException as e:
-        return jsonify({
-            "error": "Request failed",
-            "details": str(e)
-        }), 500
+        return Response(f"Error: {str(e)}", status=500)
 
 
-# Required for Vercel
+# Vercel handler
 def handler(environ, start_response):
     return app(environ, start_response)
