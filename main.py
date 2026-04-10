@@ -7,12 +7,12 @@ app = Flask(__name__)
 
 @app.route('/', methods=['GET'])
 def home():
-    return "MagicStudio Flask API running on Vercel 🚀"
+    return "MagicStudio API (raw body mode) 🚀"
 
 
 @app.route('/generate-art', methods=['GET', 'POST'])
 def generate_art():
-    # Get prompt from GET or POST
+    # Get prompt
     if request.method == 'GET':
         prompt = request.args.get('prompt', 'cat running')
     else:
@@ -23,39 +23,60 @@ def generate_art():
 
     url = "https://ai-api.magicstudio.com/api/ai-art-generator"
 
-    # Dynamic values (like browser request)
+    # Dynamic values
     anonymous_user_id = str(uuid.uuid4())
     request_timestamp = str(time.time())
 
-    # Multipart form-data (NO manual boundary needed)
-    files = {
-        'prompt': (None, prompt),
-        'output_format': (None, 'bytes'),
-        'user_profile_id': (None, 'null'),
-        'anonymous_user_id': (None, anonymous_user_id),
-        'request_timestamp': (None, request_timestamp),
-        'user_is_subscribed': (None, 'false'),
-        'client_id': (None, 'pSgX7WgjukXCBoYwDM8G8GLnRRkvAoJlqa5eAVvj95o'),
-    }
+    boundary = "----WebKitFormBoundaryuGJAbBlkgtreHwWA"
 
-    # Headers (cleaned but equivalent)
+    # FULL RAW BODY (exact format)
+    body = f"""------WebKitFormBoundaryuGJAbBlkgtreHwWA\r
+Content-Disposition: form-data; name="prompt"\r
+\r
+{prompt}\r
+------WebKitFormBoundaryuGJAbBlkgtreHwWA\r
+Content-Disposition: form-data; name="output_format"\r
+\r
+bytes\r
+------WebKitFormBoundaryuGJAbBlkgtreHwWA\r
+Content-Disposition: form-data; name="user_profile_id"\r
+\r
+null\r
+------WebKitFormBoundaryuGJAbBlkgtreHwWA\r
+Content-Disposition: form-data; name="anonymous_user_id"\r
+\r
+{anonymous_user_id}\r
+------WebKitFormBoundaryuGJAbBlkgtreHwWA\r
+Content-Disposition: form-data; name="request_timestamp"\r
+\r
+{request_timestamp}\r
+------WebKitFormBoundaryuGJAbBlkgtreHwWA\r
+Content-Disposition: form-data; name="user_is_subscribed"\r
+\r
+false\r
+------WebKitFormBoundaryuGJAbBlkgtreHwWA\r
+Content-Disposition: form-data; name="client_id"\r
+\r
+pSgX7WgjukXCBoYwDM8G8GLnRRkvAoJlqa5eAVvj95o\r
+------WebKitFormBoundaryuGJAbBlkgtreHwWA--\r
+"""
+
     headers = {
         "accept": "application/json, text/plain, */*",
         "accept-language": "en-US,en;q=0.9",
+        "content-type": f"multipart/form-data; boundary={boundary}",
         "origin": "https://magicstudio.com",
         "referer": "https://magicstudio.com/ai-art-generator/"
     }
 
     try:
-        response = requests.post(url, files=files, headers=headers, timeout=30)
+        response = requests.post(url, data=body.encode("utf-8"), headers=headers, timeout=30)
 
         content_type = response.headers.get("content-type", "")
 
-        # If image returned
         if content_type.startswith("image"):
             return Response(response.content, content_type=content_type)
 
-        # If JSON/text
         try:
             return jsonify(response.json())
         except:
@@ -68,6 +89,6 @@ def generate_art():
         }), 500
 
 
-# Required for Vercel serverless
+# Required for Vercel
 def handler(environ, start_response):
     return app(environ, start_response)
